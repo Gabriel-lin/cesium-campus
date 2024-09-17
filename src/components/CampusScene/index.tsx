@@ -1,62 +1,92 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { Viewer, Entity, ModelGraphics, CameraFlyTo, PolygonGraphics } from 'resium'
-import { Cartesian3, HeadingPitchRoll, Math as CesiumMath, Camera, Scene, Cartesian2, Color } from 'cesium'
+import React, { useEffect, useRef } from 'react';
+import * as Cesium from 'cesium';
+
+import './style.less';
+
 const CampusScene: React.FC = () => {
-    const viewerRef = useRef<any>(null)
-    const position = Cartesian3.fromDegrees(104, 30, 0) // 北京的经纬度,您可以根据需要调整
-    const uavPosition = Cartesian3.fromDegrees(104, 30, 150) // 北京的经纬度,您可以根据需要调整
-    // const hpr = new HeadingPitchRoll(0, 0, 0)
-    // const orientation = Transforms.headingPitchRollQuaternion(position, hpr)
-    const [cameraPosition, setCameraPosition] = useState<Cartesian3 | undefined>(undefined)
-    const [uavCameraView, setUavCameraView] = useState<Cartesian3[]>([])
+  const viewerContainerRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<Cesium.Viewer | null>(null);
 
+  useEffect(() => {
+    renderScene();
 
-    useEffect(() => {
-        // 设置相机初始位置
-        const cameraOffset = new Cartesian3(-100, 500, -350) // 根据需要调整
-        const newPosition = Cartesian3.add(position, cameraOffset, new Cartesian3())
-        setCameraPosition(newPosition)
-    }, [])
+    return () => {
+      if (viewerRef.current) {
+        viewerRef.current.destroy();
+        viewerRef.current = null;
+      }
+    };
+  }, []);
 
+  const renderScene = () => {
+    if (viewerContainerRef.current && !viewerRef.current) {
+      // 初始化 Cesium Viewer
+      viewerRef.current = new Cesium.Viewer(viewerContainerRef.current, {
+        terrainProvider: undefined,
+        baseLayerPicker: true,
+        geocoder: true,
+        homeButton: true,
+        navigationHelpButton: true,
+        sceneModePicker: true,
+      });
 
-    return (
-        <Viewer full ref={viewerRef}>
-            <Entity
-                position={uavPosition}
-                point={{ pixelSize: 10 }}
-                description="UAV---"
-            >
-                <ModelGraphics
-                    uri="/models/uav.glb"
-                    minimumPixelSize={10}
-                    maximumScale={300}
-                />
-            </Entity>
-            <Entity
-                position={position}
-                point={{ pixelSize: 128 }}
-                description="这是我们的3D园区---"
-            >
-                <ModelGraphics
-                    uri="/models/campus.glb"
-                    minimumPixelSize={128}
-                    maximumScale={20000}
-                />
-            </Entity>
+      const viewer = viewerRef.current;
+      // viewer.infoBox.frame.removeAttribute("sandbox");
+      viewer.infoBox.frame.setAttribute(
+        'sandbox',
+        'allow-same-origin allow-popups allow-forms allow-scripts'
+      );
+      viewer.infoBox.frame.src = 'about:blank';
 
-            {cameraPosition && (
-                <CameraFlyTo
-                    duration={10}
-                    destination={cameraPosition}
-                    orientation={{
-                        heading: CesiumMath.toRadians(0),
-                        pitch: CesiumMath.toRadians(-20),
-                        roll: 0
-                    }}
-                />
-            )}
-        </Viewer>
-    )
-}
+      // 设置相机初始位置
+      const cameraPosition = Cesium.Cartesian3.fromDegrees(104, 30, 300);
+      const cameraOffset = new Cesium.Cartesian3(-100, 100, -350); // 根据需要调整
+      const newCameraPosition = Cesium.Cartesian3.add(
+        cameraPosition,
+        cameraOffset,
+        new Cesium.Cartesian3()
+      );
+      viewer.camera.flyTo({
+        destination: newCameraPosition,
+        orientation: {
+          heading: Cesium.Math.toRadians(0),
+          pitch: Cesium.Math.toRadians(-20),
+          roll: 0,
+        },
+        duration: 10,
+      });
 
-export default CampusScene
+      // 添加园区模型
+      const campusPosition = Cesium.Cartesian3.fromDegrees(104, 30, 0);
+      viewer.entities.add({
+        name: 'CAMPUS',
+        description: '<span style="color: #000;">CAMPUS</span>',
+        position: campusPosition,
+        model: {
+          uri: '/models/campus_.glb',
+          minimumPixelSize: 128,
+          maximumScale: 20000,
+        },
+      });
+
+      // 添加无人机模型
+      const uavPosition = Cesium.Cartesian3.fromDegrees(104, 30, 150);
+      viewer.entities.add({
+        name: 'UAV',
+        description: '<span style="color: #000;">UAV</span>',
+        position: uavPosition,
+        model: {
+          uri: '/models/uav.glb',
+          minimumPixelSize: 10,
+          maximumScale: 300,
+        },
+      });
+    }
+  };
+
+  return (
+    <div ref={viewerContainerRef} style={{ width: '100%', height: '100vh' }} />
+  );
+};
+
+export default CampusScene;
